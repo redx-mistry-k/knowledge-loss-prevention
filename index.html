@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>KLP – Home</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+
+  <style>
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
+    }
+
+    /* Glass container (search/filter) */
+    .glass-bar {
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 14px;
+      padding: 1rem;
+    }
+
+    /* Glass cards */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+      color: #fff;
+    }
+
+    .glass-card .text-muted {
+      color: rgba(255, 255, 255, 0.7) !important;
+    }
+
+    .glass-card .card-footer {
+      background: transparent;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .form-control,
+    .form-select {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+    }
+
+    .form-control::placeholder {
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      box-shadow: none;
+    }
+    /* Fix dropdown options (opened state) */
+select option {
+  background-color: rgba(31, 47, 56, 0.95);
+  color: #fff;
+}
+
+
+/* Hovered / selected option */
+select option:hover,
+select option:checked {
+  background-color: #0d6efd;   /* Bootstrap primary */
+  color: #ffffff;
+}
+
+  </style>
+</head>
+
+
+  <body>
+    <!-- Shared JS -->
+    <script src="klp.js"></script>
+
+    <!-- NAVBAR -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="index.html">KLP</a>
+        <div>
+          <a class="btn btn-sm btn-outline-light me-2" href="submit.html">
+            Submit
+          </a>
+          <a class="btn btn-sm btn-outline-light me-2" href="my-items.html">
+            My Knowledge
+          </a>
+          <a class="btn btn-sm btn-outline-light me-2" href="approval.html">
+            Approvals
+          </a>
+
+          <a
+            id="adminBtn"
+            class="btn btn-sm btn-outline-warning me-2"
+            href="admin.html"
+          >
+            Admin
+          </a>
+
+          <select
+            id="projectSwitcher"
+            class="form-select form-select-sm d-inline-block me-2"
+            style="width: 180px; display: none;"
+          ></select>
+
+          <button class="btn btn-sm btn-danger" onclick="logout()">
+            Logout
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- MAIN -->
+    <div class="container">
+      <!-- Search + Filter -->
+     <div class="glass-bar d-flex justify-content-between align-items-center mb-4">
+        <input
+          id="search"
+          class="form-control me-3"
+          placeholder="Search knowledge..."
+        />
+
+        <select id="statusFilter" class="form-select w-auto">
+          <option value="all">All</option>
+          <option value="Approved">Approved only</option>
+          <option value="Draft">Draft only</option>
+        </select>
+      </div>
+
+      <!-- Results -->
+      <div id="results" class="row g-3"></div>
+    </div>
+
+    <!-- PAGE SCRIPT -->
+    <script>
+      const results = document.getElementById("results");
+      const searchInput = document.getElementById("search");
+      const statusFilter = document.getElementById("statusFilter");
+      const projectSwitcher = document.getElementById("projectSwitcher");
+
+      let allItems = [];
+
+      // ----------------------------
+      // Render cards
+      // ----------------------------
+      function render(items) {
+        results.innerHTML = "";
+
+        if (items.length === 0) {
+          results.innerHTML =
+            '<div class="text-muted">No knowledge items found.</div>';
+          return;
+        }
+
+        items.forEach((i) => {
+results.innerHTML += `
+  <div class="col-md-4">
+    <div class="card glass-card h-100">
+      <div class="card-body">
+        <h5 class="card-title">${i.title}</h5>
+        <p class="text-muted mb-1">${i.system || ""}</p>
+
+        <span class="badge bg-${
+          i.status === "Approved" ? "success" : "secondary"
+        }">
+          ${i.status}
+        </span>
+      </div>
+
+      <div class="card-footer">
+        <a href="detail.html?id=${i.id}" class="btn btn-sm btn-primary">
+          View
+        </a>
+      </div>
+    </div>
+  </div>
+`;
+
+        });
+      }
+
+      // ----------------------------
+      // Filters (search + status)
+      // ----------------------------
+      function applyFilters() {
+        const q = searchInput.value.toLowerCase();
+        const status = statusFilter.value;
+
+        let filtered = allItems;
+
+        if (status !== "all") {
+          filtered = filtered.filter(i => i.status === status);
+        }
+
+        if (q) {
+          filtered = filtered.filter(i =>
+            i.title.toLowerCase().includes(q)
+          );
+        }
+
+        render(filtered);
+      }
+
+      // ----------------------------
+      // Navbar: Admin visibility
+      // ----------------------------
+      async function initNavbar() {
+        const me = await api("/me");
+
+        if (!me.isOwner) {
+          const adminBtn = document.getElementById("adminBtn");
+          if (adminBtn) adminBtn.remove();
+        }
+      }
+
+      // ----------------------------
+      // Project switcher
+      // ----------------------------
+      async function initProjectSwitcher() {
+        const projects = await api("/projects");
+
+        if (!projects || projects.length <= 1) return;
+
+        projectSwitcher.style.display = "inline-block";
+        projectSwitcher.innerHTML = "";
+
+        const saved = sessionStorage.getItem("activeProjectId");
+
+        projects.forEach(p => {
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          opt.textContent = `${p.name} (${p.role})`;
+          projectSwitcher.appendChild(opt);
+        });
+
+        projectSwitcher.value = saved || projects[0].id;
+        sessionStorage.setItem("activeProjectId", projectSwitcher.value);
+
+        projectSwitcher.onchange = () => {
+          sessionStorage.setItem("activeProjectId", projectSwitcher.value);
+          location.reload();
+        };
+      }
+
+      // ----------------------------
+      // Event handlers
+      // ----------------------------
+      searchInput.oninput = applyFilters;
+      statusFilter.onchange = applyFilters;
+
+      // ----------------------------
+      // Page init (ORDER MATTERS)
+      // ----------------------------
+      async function init() {
+        await requireAuth();           // 🔐 auth first
+        await initNavbar();            // 👑 admin check
+        await initProjectSwitcher();   // 📁 project UI
+        allItems = await getKnowledge();
+        applyFilters();
+      }
+
+      init();
+    </script>
+  </body>
+</html>
+
+
