@@ -3,7 +3,7 @@
 An internal web platform designed to capture, review, and retain critical operational knowledge across projects, reducing dependency on individuals and preventing knowledge loss.
 
 ## 🚀 Live Demo
-🔗 https://your-live-url  
+🔗 [KLP](https://krishnaanalytics.tech/klp/login.html) 
 *(Demo access available on request)*
 
 ## ✨ Features
