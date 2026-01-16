@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>My Knowledge</title>
+    <meta charset="utf-8" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body onload="requireAuth()">
+    <script src="klp.js"></script>
+    <script>
+      requireAuth();
+    </script>
+
+     <!-- NAVBAR -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="index.html">KLP</a>
+        <div>
+          <a class="btn btn-sm btn-outline-light me-2" href="submit.html">
+            Submit
+          </a>
+          <a class="btn btn-sm btn-outline-light me-2" href="my-items.html">
+            My Knowledge
+          </a>
+          <a class="btn btn-sm btn-outline-light me-2" href="approval.html">
+            Approvals
+          </a>
+          <button class="btn btn-sm btn-danger" onclick="logout()">
+            Logout
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <h3 class="mb-4">My Knowledge</h3>
+      <div id="items" class="row g-3"></div>
+    </div>
+
+    <script>
+async function loadMyKnowledge() {
+  const itemsDiv = document.getElementById("items");
+  const items = await api("/knowledge");
+
+  itemsDiv.innerHTML = "";
+
+  items.forEach(i => {
+    itemsDiv.innerHTML += `
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">${i.title}</h5>
+            <p class="text-muted mb-2">${i.system || ""}</p>
+            <span class="badge bg-${i.status === "Approved" ? "success" : "secondary"}">
+              ${i.status}
+            </span>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+}
+
+loadMyKnowledge();
+</script>
+
+  </body>
+</html>
+
+

@@ -1,0 +1,56 @@
+#klp-app {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  max-width: 1200px;
+  margin: auto;
+}
+
+h1 {
+  margin-bottom: 10px;
+}
+
+nav a {
+  margin-right: 15px;
+  text-decoration: none;
+  color: #0366d6;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+th {
+  background: #f4f4f4;
+}
+
+input,
+select,
+textarea,
+button {
+  margin-top: 8px;
+  padding: 6px;
+  width: 100%;
+  max-width: 400px;
+}
+
+button {
+  cursor: pointer;
+}
+
+.status-draft {
+  color: gray;
+}
+.status-approved {
+  color: green;
+}
+.status-pending {
+  color: orange;
+}
