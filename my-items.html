@@ -1,73 +1,97 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>My Knowledge</title>
-    <meta charset="utf-8" />
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-  </head>
-  <body onload="requireAuth()">
-    <script src="klp.js"></script>
-    <script>
-      requireAuth();
-    </script>
+<html lang="en">
+<head>
+  <title>KLP – My Knowledge</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 
-     <!-- NAVBAR -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="index.html">KLP</a>
-        <div>
-          <a class="btn btn-sm btn-outline-light me-2" href="submit.html">
-            Submit
-          </a>
-          <a class="btn btn-sm btn-outline-light me-2" href="my-items.html">
-            My Knowledge
-          </a>
-          <a class="btn btn-sm btn-outline-light me-2" href="approval.html">
-            Approvals
-          </a>
-          <button class="btn btn-sm btn-danger" onclick="logout()">
-            Logout
-          </button>
-        </div>
-      </div>
-    </nav>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <link href="klp.css" rel="stylesheet" />
+</head>
 
-    <div class="container">
-      <h3 class="mb-4">My Knowledge</h3>
-      <div id="items" class="row g-3"></div>
+<body>
+  <!-- Shared navbar injected by klp.js -->
+  <script src="klp.js"></script>
+
+  <main class="container">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+      <h3 class="page-title mb-0">My Knowledge</h3>
+      <a href="submit.html" class="btn btn-sm btn-primary">+ Submit knowledge</a>
     </div>
 
-    <script>
-async function loadMyKnowledge() {
-  const itemsDiv = document.getElementById("items");
-  const items = await api("/knowledge");
+    <div id="note" class="text-muted mb-3" style="display: none;"></div>
 
-  itemsDiv.innerHTML = "";
+    <div id="items" class="row g-3"></div>
+  </main>
 
-  items.forEach(i => {
-    itemsDiv.innerHTML += `
+  <script>
+    async function loadMyKnowledge() {
+      const itemsDiv = document.getElementById("items");
+      const note = document.getElementById("note");
+      itemsDiv.innerHTML = loadingCards(3);
+
+      try {
+        const all = (await getKnowledge()) || [];
+        const me = myEmail().toLowerCase();
+
+        // Filter to items created by the signed-in user. The API has no
+        // dedicated /mine endpoint, so we filter client-side; if the backend
+        // does not report item ownership we fall back to showing everything
+        // (with a note) rather than an empty page.
+        const hasOwnership = all.some((i) => itemCreator(i));
+        const mine = hasOwnership
+          ? all.filter((i) => String(itemCreator(i)).toLowerCase() === me)
+          : all;
+
+        if (!hasOwnership && all.length > 0) {
+          note.textContent =
+            "Ownership metadata is unavailable — showing all items in this project.";
+          note.style.display = "block";
+        }
+
+        if (mine.length === 0) {
+          itemsDiv.innerHTML = emptyStateHTML(
+            "✍️",
+            "Nothing yet",
+            "You haven't submitted any knowledge in this project yet.",
+            '<a class="btn btn-primary btn-sm" href="submit.html">Submit your first item</a>'
+          );
+          return;
+        }
+
+        itemsDiv.innerHTML = mine
+          .map((i) => {
+            const body = excerpt(i);
+            const date = itemDate(i);
+            return `
       <div class="col-md-4">
-        <div class="card h-100 shadow-sm">
+        <div class="glass-card klp-hover h-100 d-flex flex-column">
           <div class="card-body">
-            <h5 class="card-title">${i.title}</h5>
-            <p class="text-muted mb-2">${i.system || ""}</p>
-            <span class="badge bg-${i.status === "Approved" ? "success" : "secondary"}">
-              ${i.status}
-            </span>
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+              <h5 class="card-title mb-0">${esc(i.title)}</h5>
+              ${statusBadge(i.status)}
+            </div>
+            <p class="text-muted mb-1">${esc(i.system || "")}</p>
+            ${body ? `<p class="card-excerpt text-muted mb-2">${esc(body)}</p>` : ""}
+            ${date ? `<div class="klp-meta">${esc(date)}</div>` : ""}
+          </div>
+          <div class="card-footer mt-auto">
+            <a href="detail.html?id=${encodeURIComponent(i.id)}" class="btn btn-sm btn-primary">View</a>
           </div>
         </div>
-      </div>
-    `;
-  });
-}
+      </div>`;
+          })
+          .join("");
+      } catch (err) {
+        itemsDiv.innerHTML = errorStateHTML(err.message);
+      }
+    }
 
-loadMyKnowledge();
-</script>
-
-  </body>
+    initPage("my-items").then(loadMyKnowledge);
+  </script>
+</body>
 </html>
-
-

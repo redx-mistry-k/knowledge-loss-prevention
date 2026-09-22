@@ -1,279 +1,160 @@
 <!DOCTYPE html>
-<html>
-  <head>
+<html lang="en">
+<head>
   <title>KLP – Home</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 
   <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
     rel="stylesheet"
   />
-
-  <style>
-    body {
-      min-height: 100vh;
-      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-      color: #fff;
-    }
-
-    /* Glass container (search/filter) */
-    .glass-bar {
-      background: rgba(255, 255, 255, 0.12);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 14px;
-      padding: 1rem;
-    }
-
-    /* Glass cards */
-    .glass-card {
-      background: rgba(255, 255, 255, 0.12);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 16px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-      color: #fff;
-    }
-
-    .glass-card .text-muted {
-      color: rgba(255, 255, 255, 0.7) !important;
-    }
-
-    .glass-card .card-footer {
-      background: transparent;
-      border-top: 1px solid rgba(255, 255, 255, 0.15);
-    }
-
-    .form-control,
-    .form-select {
-      background: rgba(255, 255, 255, 0.15);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: #fff;
-    }
-
-    .form-control::placeholder {
-      color: rgba(255, 255, 255, 0.7);
-    }
-
-    .form-control:focus,
-    .form-select:focus {
-      background: rgba(255, 255, 255, 0.2);
-      color: #fff;
-      box-shadow: none;
-    }
-    /* Fix dropdown options (opened state) */
-select option {
-  background-color: rgba(31, 47, 56, 0.95);
-  color: #fff;
-}
-
-
-/* Hovered / selected option */
-select option:hover,
-select option:checked {
-  background-color: #0d6efd;   /* Bootstrap primary */
-  color: #ffffff;
-}
-
-  </style>
+  <link href="klp.css" rel="stylesheet" />
 </head>
 
+<body>
+  <!-- Shared navbar injected by klp.js -->
+  <script src="klp.js"></script>
 
-  <body>
-    <!-- Shared JS -->
-    <script src="klp.js"></script>
+  <main class="container">
+    <!-- Search + Filter -->
+    <div class="glass-bar d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+      <input
+        id="search"
+        class="form-control"
+        style="flex: 1 1 240px;"
+        placeholder="Search title, system, process area, description…"
+        aria-label="Search knowledge"
+      />
 
-    <!-- NAVBAR -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="index.html">KLP</a>
-        <div>
-          <a class="btn btn-sm btn-outline-light me-2" href="submit.html">
-            Submit
-          </a>
-          <a class="btn btn-sm btn-outline-light me-2" href="my-items.html">
-            My Knowledge
-          </a>
-          <a class="btn btn-sm btn-outline-light me-2" href="approval.html">
-            Approvals
-          </a>
+      <select id="statusFilter" class="form-select w-auto" aria-label="Filter by status">
+        <option value="all">All statuses</option>
+        <option value="Approved">Approved</option>
+        <option value="Pending">Pending</option>
+        <option value="Draft">Draft</option>
+        <option value="Rejected">Rejected</option>
+        <option value="Archived">Archived</option>
+      </select>
 
-          <a
-            id="adminBtn"
-            class="btn btn-sm btn-outline-warning me-2"
-            href="admin.html"
-          >
-            Admin
-          </a>
-
-          <select
-            id="projectSwitcher"
-            class="form-select form-select-sm d-inline-block me-2"
-            style="width: 180px; display: none;"
-          ></select>
-
-          <button class="btn btn-sm btn-danger" onclick="logout()">
-            Logout
-          </button>
-        </div>
-      </div>
-    </nav>
-
-    <!-- MAIN -->
-    <div class="container">
-      <!-- Search + Filter -->
-     <div class="glass-bar d-flex justify-content-between align-items-center mb-4">
-        <input
-          id="search"
-          class="form-control me-3"
-          placeholder="Search knowledge..."
-        />
-
-        <select id="statusFilter" class="form-select w-auto">
-          <option value="all">All</option>
-          <option value="Approved">Approved only</option>
-          <option value="Draft">Draft only</option>
-        </select>
-      </div>
-
-      <!-- Results -->
-      <div id="results" class="row g-3"></div>
+      <span id="resultCount" class="klp-meta text-nowrap"></span>
     </div>
 
-    <!-- PAGE SCRIPT -->
-    <script>
-      const results = document.getElementById("results");
-      const searchInput = document.getElementById("search");
-      const statusFilter = document.getElementById("statusFilter");
-      const projectSwitcher = document.getElementById("projectSwitcher");
+    <!-- Results -->
+    <div id="results" class="row g-3"></div>
+  </main>
 
-      let allItems = [];
+  <script>
+    const results = document.getElementById("results");
+    const searchInput = document.getElementById("search");
+    const statusFilter = document.getElementById("statusFilter");
+    const resultCount = document.getElementById("resultCount");
 
-      // ----------------------------
-      // Render cards
-      // ----------------------------
-      function render(items) {
-        results.innerHTML = "";
+    let allItems = [];
+    let searchTimer = null;
 
-        if (items.length === 0) {
-          results.innerHTML =
-            '<div class="text-muted">No knowledge items found.</div>';
-          return;
-        }
+    // ----------------------------
+    // Render cards (XSS-safe)
+    // ----------------------------
+    function render(items) {
+      resultCount.textContent =
+        allItems.length > 0 ? `${items.length} of ${allItems.length} items` : "";
 
-        items.forEach((i) => {
-results.innerHTML += `
+      if (items.length === 0) {
+        results.innerHTML = emptyStateHTML(
+          "🗂",
+          allItems.length === 0 ? "No knowledge yet" : "No matches",
+          allItems.length === 0
+            ? "Be the first to capture critical knowledge for this project."
+            : "Try a different search term or status filter.",
+          allItems.length === 0
+            ? '<a class="btn btn-primary btn-sm" href="submit.html">Submit knowledge</a>'
+            : ""
+        );
+        return;
+      }
+
+      results.innerHTML = items
+        .map((i) => {
+          const body = excerpt(i);
+          const creator = itemCreator(i);
+          const date = itemDate(i);
+          const metaBits = [creator ? `by ${creator}` : "", date].filter(Boolean).join(" · ");
+
+          return `
   <div class="col-md-4">
-    <div class="card glass-card h-100">
+    <div class="glass-card klp-hover h-100 d-flex flex-column">
       <div class="card-body">
-        <h5 class="card-title">${i.title}</h5>
-        <p class="text-muted mb-1">${i.system || ""}</p>
-
-        <span class="badge bg-${
-          i.status === "Approved" ? "success" : "secondary"
-        }">
-          ${i.status}
-        </span>
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+          <h5 class="card-title mb-0">${esc(i.title)}</h5>
+          ${statusBadge(i.status)}
+        </div>
+        <p class="text-muted mb-1">${esc(i.system || i.process_area || "")}</p>
+        ${body ? `<p class="card-excerpt text-muted mb-2">${esc(body)}</p>` : ""}
+        ${metaBits ? `<div class="klp-meta">${esc(metaBits)}</div>` : ""}
       </div>
 
-      <div class="card-footer">
-        <a href="detail.html?id=${i.id}" class="btn btn-sm btn-primary">
+      <div class="card-footer mt-auto">
+        <a href="detail.html?id=${encodeURIComponent(i.id)}" class="btn btn-sm btn-primary">
           View
         </a>
       </div>
     </div>
-  </div>
-`;
+  </div>`;
+        })
+        .join("");
+    }
 
-        });
+    // ----------------------------
+    // Filters (search + status)
+    // ----------------------------
+    function applyFilters() {
+      const q = searchInput.value.trim().toLowerCase();
+      const status = statusFilter.value;
+
+      let filtered = allItems;
+
+      if (status !== "all") {
+        filtered = filtered.filter((i) => String(i.status).toLowerCase() === status.toLowerCase());
       }
 
-      // ----------------------------
-      // Filters (search + status)
-      // ----------------------------
-      function applyFilters() {
-        const q = searchInput.value.toLowerCase();
-        const status = statusFilter.value;
-
-        let filtered = allItems;
-
-        if (status !== "all") {
-          filtered = filtered.filter(i => i.status === status);
-        }
-
-        if (q) {
-          filtered = filtered.filter(i =>
-            i.title.toLowerCase().includes(q)
-          );
-        }
-
-        render(filtered);
+      if (q) {
+        // Search across title, system, process area and description
+        filtered = filtered.filter((i) =>
+          [i.title, i.system, i.process_area, pickField(i, ["description", "details", "body"])]
+            .filter(Boolean)
+            .some((field) => String(field).toLowerCase().includes(q))
+        );
       }
 
-      // ----------------------------
-      // Navbar: Admin visibility
-      // ----------------------------
-      async function initNavbar() {
-        const me = await api("/me");
+      render(filtered);
+    }
 
-        if (!me.isOwner) {
-          const adminBtn = document.getElementById("adminBtn");
-          if (adminBtn) adminBtn.remove();
-        }
-      }
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(applyFilters, 150);
+    });
+    statusFilter.addEventListener("change", applyFilters);
 
-      // ----------------------------
-      // Project switcher
-      // ----------------------------
-      async function initProjectSwitcher() {
-        const projects = await api("/projects");
+    // ----------------------------
+    // Page init (ORDER MATTERS)
+    // ----------------------------
+    async function init() {
+      results.innerHTML = loadingCards(6);
 
-        if (!projects || projects.length <= 1) return;
+      await initPage("home"); // auth + navbar + admin check + project switcher
 
-        projectSwitcher.style.display = "inline-block";
-        projectSwitcher.innerHTML = "";
-
-        const saved = sessionStorage.getItem("activeProjectId");
-
-        projects.forEach(p => {
-          const opt = document.createElement("option");
-          opt.value = p.id;
-          opt.textContent = `${p.name} (${p.role})`;
-          projectSwitcher.appendChild(opt);
-        });
-
-        projectSwitcher.value = saved || projects[0].id;
-        sessionStorage.setItem("activeProjectId", projectSwitcher.value);
-
-        projectSwitcher.onchange = () => {
-          sessionStorage.setItem("activeProjectId", projectSwitcher.value);
-          location.reload();
-        };
-      }
-
-      // ----------------------------
-      // Event handlers
-      // ----------------------------
-      searchInput.oninput = applyFilters;
-      statusFilter.onchange = applyFilters;
-
-      // ----------------------------
-      // Page init (ORDER MATTERS)
-      // ----------------------------
-      async function init() {
-        await requireAuth();           // 🔐 auth first
-        await initNavbar();            // 👑 admin check
-        await initProjectSwitcher();   // 📁 project UI
-        allItems = await getKnowledge();
+      try {
+        allItems = (await getKnowledge()) || [];
+        // newest first when timestamps exist
+        allItems.sort((a, b) => String(itemDate(b)).localeCompare(String(itemDate(a))));
         applyFilters();
+      } catch (err) {
+        results.innerHTML = errorStateHTML(err.message);
       }
+    }
 
-      init();
-    </script>
-  </body>
+    init();
+  </script>
+</body>
 </html>
-
-

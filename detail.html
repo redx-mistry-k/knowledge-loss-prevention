@@ -1,90 +1,106 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>Knowledge Detail</title>
-    <meta charset="utf-8" />
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-  </head>
-  <body onload="requireAuth()">
-    <script src="klp.js"></script>
-    <script>
-      requireAuth();
-    </script>
+<html lang="en">
+<head>
+  <title>KLP – Knowledge Detail</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 
-     <!-- NAVBAR -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="index.html">KLP</a>
-        <div>
-          <a class="btn btn-sm btn-outline-light me-2" href="submit.html">
-            Submit
-          </a>
-          <a class="btn btn-sm btn-outline-light me-2" href="my-items.html">
-            My Knowledge
-          </a>
-          <a class="btn btn-sm btn-outline-light me-2" href="approval.html">
-            Approvals
-          </a>
-          <button class="btn btn-sm btn-danger" onclick="logout()">
-            Logout
-          </button>
-        </div>
-      </div>
-    </nav>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <link href="klp.css" rel="stylesheet" />
+</head>
 
-    <div class="container">
-      <div id="detail" class="card shadow-sm p-4"></div>
+<body>
+  <!-- Shared navbar injected by klp.js -->
+  <script src="klp.js"></script>
+
+  <main class="container" style="max-width: 860px;">
+    <div id="detail" class="glass-card p-4">
+      <div class="klp-skeleton mb-2" style="width: 55%; height: 1.6rem;"></div>
+      <div class="klp-skeleton mb-3" style="width: 35%;"></div>
+      <div class="klp-skeleton" style="height: 6rem;"></div>
     </div>
+  </main>
 
-    <script>
-async function loadDetail() {
-  const id = Number(getParam("id"));
-  const detailDiv = document.getElementById("detail");
+  <script>
+    async function loadDetail() {
+      const id = Number(getParam("id"));
+      const detailDiv = document.getElementById("detail");
 
-  if (!id) {
-    detailDiv.innerHTML = "<div class='text-danger'>Invalid item</div>";
-    return;
-  }
+      if (!id) {
+        detailDiv.innerHTML = `<div class="klp-empty">
+            <span class="klp-empty-icon">⚠️</span>
+            <div class="fw-semibold mb-1">Invalid item</div>
+            <a href="index.html" class="btn btn-outline-light btn-sm mt-2">Back to home</a>
+          </div>`;
+        return;
+      }
 
-  const items = await api("/knowledge");
-  const item = items.find(i => i.id === id);
+      try {
+        // Detail is fetched from the list endpoint (single-item GET is not
+        // part of the current API contract).
+        const items = (await getKnowledge()) || [];
+        const item = items.find((i) => Number(i.id) === id);
 
-  if (!item) {
-    detailDiv.innerHTML = "<div class='text-muted'>Item not found.</div>";
-    return;
-  }
+        if (!item) {
+          detailDiv.innerHTML = `<div class="klp-empty">
+              <span class="klp-empty-icon">🗂</span>
+              <div class="fw-semibold mb-1">Item not found</div>
+              <div class="mb-3">It may belong to another project — try switching projects in the navbar.</div>
+              <a href="index.html" class="btn btn-outline-light btn-sm">Back to home</a>
+            </div>`;
+          return;
+        }
 
-  detailDiv.innerHTML = `
-    <h3 class="mb-3">${item.title}</h3>
+        const description = pickField(item, ["description", "details", "body"], "");
+        const creator = itemCreator(item);
+        const date = itemDate(item);
 
-    <dl class="row">
-      <dt class="col-sm-3">System / Tool</dt>
-      <dd class="col-sm-9">${item.system || "-"}</dd>
+        detailDiv.innerHTML = `
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+            <h3 class="page-title mb-0">${esc(item.title)}</h3>
+            ${statusBadge(item.status)}
+          </div>
 
-      <dt class="col-sm-3">Process Area</dt>
-      <dd class="col-sm-9">${item.process_area || "-"}</dd>
+          <div class="klp-meta mb-4">
+            ${creator ? `Submitted by ${esc(creator)}` : ""}${creator && date ? " · " : ""}${date ? esc(date) : ""}
+            ${!creator && !date ? "No submission metadata available" : ""}
+          </div>
 
-      <dt class="col-sm-3">Status</dt>
-      <dd class="col-sm-9">
-        <span class="badge bg-${
-          item.status === "Approved" ? "success" : "secondary"
-        }">
-          ${item.status}
-        </span>
-      </dd>
-    </dl>
+          <dl class="row mb-0">
+            <dt class="col-sm-3">System / Tool</dt>
+            <dd class="col-sm-9">${esc(item.system || "-")}</dd>
 
-    <a href="index.html" class="btn btn-outline-primary">Back</a>
-  `;
-}
+            <dt class="col-sm-3">Process Area</dt>
+            <dd class="col-sm-9">${esc(item.process_area || "-")}</dd>
 
-loadDetail();
-</script>
+            ${pickField(item, ["project_name"], "") ? `
+              <dt class="col-sm-3">Project</dt>
+              <dd class="col-sm-9">${esc(item.project_name)}</dd>` : ""}
+          </dl>
 
-  </body>
+          <hr class="klp-divider" />
+
+          <h6 class="text-muted text-uppercase mb-2" style="letter-spacing: 0.8px; font-size: 0.75rem;">
+            Description
+          </h6>
+          <div class="klp-prewrap mb-4">${
+            description
+              ? esc(description)
+              : '<span class="text-muted">(no description provided)</span>'
+          }</div>
+
+          <a href="index.html" class="btn btn-outline-light">← Back</a>
+        `;
+      } catch (err) {
+        detailDiv.innerHTML = errorStateHTML(err.message);
+      }
+    }
+
+    initPage("home").then(loadDetail);
+  </script>
+</body>
 </html>
-
-
