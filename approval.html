@@ -1,153 +1,101 @@
 <!DOCTYPE html>
-<html>
-  <head>
-  <title>Approval Queue</title>
+<html lang="en">
+<head>
+  <title>KLP – Approval Queue</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 
   <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
     rel="stylesheet"
   />
-
-  <style>
-    body {
-      min-height: 100vh;
-      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-      color: #fff;
-    }
-
-    h3 {
-      font-weight: 600;
-    }
-
-    /* Glass approval card */
-    .glass-item {
-      background: rgba(255, 255, 255, 0.12);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 14px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-      color: #fff;
-      margin-bottom: 1rem;
-    }
-
-    .glass-item .text-muted {
-      color: rgba(255, 255, 255, 0.7) !important;
-    }
-
-    .glass-item small.text-primary {
-      color: #6ea8fe !important;
-    }
-  </style>
+  <link href="klp.css" rel="stylesheet" />
 </head>
 
-  <body onload="requireAuth()">
-    <script src="klp.js"></script>
-    <script>
-      requireAuth();
-    </script>
+<body>
+  <!-- Shared navbar injected by klp.js -->
+  <script src="klp.js"></script>
 
-     <!-- NAVBAR -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="index.html">KLP</a>
-        <div>
-          <a class="btn btn-sm btn-outline-light me-2" href="submit.html">
-            Submit
-          </a>
-          <a class="btn btn-sm btn-outline-light me-2" href="my-items.html">
-            My Knowledge
-          </a>
-          <a class="btn btn-sm btn-outline-light me-2" href="approval.html">
-            Approvals
-          </a>
-          <button class="btn btn-sm btn-danger" onclick="logout()">
-            Logout
-          </button>
+  <main class="container" style="max-width: 960px;">
+    <h3 class="page-title mb-4">Approval Queue</h3>
+
+    <div id="queue"></div>
+  </main>
+
+  <script>
+    async function loadApprovals() {
+      const queue = document.getElementById("queue");
+      queue.innerHTML = loadingCards(2).replace(/col-md-4/g, "col-12");
+
+      try {
+        const items = (await api("/approvals")) || [];
+
+        if (items.length === 0) {
+          queue.innerHTML = emptyStateHTML(
+            "✅",
+            "All clear",
+            "No items pending approval."
+          );
+          return;
+        }
+
+        queue.innerHTML = items
+          .map((i) => {
+            const body = excerpt(i, 200);
+            const creator = itemCreator(i);
+            return `
+    <div class="glass-card klp-hover mb-3">
+      <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div style="flex: 1 1 320px; min-width: 0;">
+          <small class="text-primary fw-bold">Project: ${esc(i.project_name || "-")}</small>
+          <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+            <strong>${esc(i.title)}</strong>
+            ${statusBadge(i.status)}
+          </div>
+          ${body ? `<div class="text-muted mt-1" style="font-size: 0.85rem;">${esc(body)}</div>` : ""}
+          ${creator ? `<div class="klp-meta mt-1">Submitted by ${esc(creator)}</div>` : ""}
+        </div>
+
+        <div class="d-flex gap-2">
+          <a href="detail.html?id=${encodeURIComponent(i.id)}" class="btn btn-sm btn-outline-light">View</a>
+          <button class="btn btn-sm btn-success" data-id="${esc(i.id)}" data-action="approve">Approve</button>
+          <button class="btn btn-sm btn-outline-danger" data-id="${esc(i.id)}" data-action="reject">Reject</button>
         </div>
       </div>
-    </nav>
+    </div>`;
+          })
+          .join("");
+      } catch (err) {
+        queue.innerHTML = errorStateHTML(err.message);
+      }
+    }
 
-    <div class="container">
-      <h3 class="mb-4">Approval Queue</h3>
+    async function decide(id, action, btn) {
+      const verb = action === "approve" ? "Approve" : "Reject";
+      if (!confirm(`${verb} this item?`)) return;
 
-      <div class="list-group" id="queue"></div>
-    </div>
+      const card = btn.closest(".glass-card");
+      card.querySelectorAll("button").forEach((b) => (b.disabled = true));
 
-    <script>
-async function loadApprovals() {
-  const queue = document.getElementById("queue");
-  const items = await api("/approvals");
+      try {
+        await decideKnowledge(id, action);
+        toast(action === "approve" ? "Item approved" : "Item rejected", "success");
+        await loadApprovals();
+      } catch (err) {
+        toast(err.message || "Decision failed", "error");
+        card.querySelectorAll("button").forEach((b) => (b.disabled = false));
+      }
+    }
 
-  if (!items || items.length === 0) {
-  queue.innerHTML = `
-    <div class="glass-item text-center p-4">
-      <span class="text-muted">
-        No items pending approval.
-      </span>
-    </div>
-  `;
-  return;
-}
+    // Event delegation (buttons are re-rendered on every refresh)
+    document.getElementById("queue").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      decide(btn.dataset.id, btn.dataset.action, btn);
+    });
 
-
-  queue.innerHTML = "";
-
-  items.forEach(i => {
-  queue.innerHTML += `
-    <div class="glass-item d-flex justify-content-between align-items-center">
-      <div>
-        <small class="text-primary fw-bold">
-          Project: ${i.project_name}
-        </small><br>
-
-        <strong>${i.title}</strong><br>
-
-        <small class="text-muted">
-          Status: ${i.status}
-        </small>
-      </div>
-
-      <div>
-        <button
-          class="btn btn-sm btn-success me-2"
-          onclick="decide(${i.id}, 'approve')">
-          Approve
-        </button>
-
-        <button
-          class="btn btn-sm btn-outline-danger"
-          onclick="decide(${i.id}, 'reject')">
-          Reject
-        </button>
-      </div>
-    </div>
-  `;
-});
-
-}
-
-async function decide(id, action) {
-  await api("/knowledge/decision", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, action })
-  });
-
-  loadApprovals();
-}
-
-loadApprovals();
-</script>
-
-
-
-  </body>
+    initPage("approvals").then(loadApprovals);
+  </script>
+</body>
 </html>
-
-
-
-
-
